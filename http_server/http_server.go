@@ -14,6 +14,7 @@ import (
 
 	"github.com/danthegoodman1/specificproxy/config"
 	"github.com/danthegoodman1/specificproxy/gologger"
+	"github.com/danthegoodman1/specificproxy/ratelimit"
 )
 
 var logger = gologger.NewLogger()
@@ -126,6 +127,32 @@ func (hs *HTTPServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check rate limiting if configured
+	if rateLimitHeader := r.Header.Get("X-Rate-Limit"); rateLimitHeader != "" {
+		var rlConfig ratelimit.Config
+		if err := json.Unmarshal([]byte(rateLimitHeader), &rlConfig); err != nil {
+			http.Error(w, "invalid X-Rate-Limit header format", http.StatusBadRequest)
+			return
+		}
+
+		// Extract host and path for resource keying
+		host := r.Host
+		path := r.URL.Path
+		if r.Method == http.MethodConnect {
+			// For CONNECT, host is in r.Host, path is empty
+			path = ""
+		}
+
+		resourceKey := ratelimit.ExtractResourceKey(host, path, rlConfig.Resource.Kind)
+		limiter := ratelimit.GetStore().GetOrCreate(egressIP, resourceKey, &rlConfig)
+
+		if !limiter.Allow() {
+			w.Header().Set("X-RateLimit-Source", "specificproxy")
+			http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
+			return
+		}
+	}
+
 	if r.Method == http.MethodConnect {
 		hs.handleConnect(w, r, localIP)
 	} else {
@@ -212,6 +239,7 @@ func (hs *HTTPServer) handleHTTPProxy(w http.ResponseWriter, r *http.Request, lo
 
 	// Remove proxy-specific headers to make proxy invisible
 	outReq.Header.Del("X-Egress-IP")
+	outReq.Header.Del("X-Rate-Limit")
 	outReq.Header.Del("Proxy-Connection")
 	outReq.Header.Del("Proxy-Authorization")
 

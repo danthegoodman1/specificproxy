@@ -34,6 +34,38 @@ curl -x http://localhost:8080 --proxy-header "X-Egress-IP: 2a01:4ff:1f0:11f8::1"
 curl -x http://localhost:8080 https://icanhazip.com
 ```
 
+## Rate Limiting
+
+Optional per-request rate limiting via `X-Rate-Limit` header. Rate limits are keyed per egress IP and resource.
+
+```bash
+# Rate limit: 10 requests per 60 seconds, keyed by domain
+curl -x http://localhost:8080 \
+  --proxy-header "X-Egress-IP: 2a01:4ff:1f0:11f8::1" \
+  --proxy-header 'X-Rate-Limit: {"method":"token_bucket","rate":10,"period":60,"resource":{"kind":"domain"}}' \
+  https://example.com
+```
+
+Header format:
+```json
+{
+  "method": "token_bucket",
+  "rate": 10,
+  "period": 60,
+  "ttl": 300,
+  "resource": {"kind": "domain"}
+}
+```
+
+Options:
+- `method`: `token_bucket` or `fixed_window`
+- `rate`: requests allowed per period
+- `period`: period in seconds
+- `ttl`: limiter TTL in seconds (default 300), resets on each use
+- `resource.kind`: `domain` or `domain_path`
+
+When rate limited by the proxy, the response includes `X-RateLimit-Source: specificproxy` header to distinguish from destination rate limits.
+
 ## Environment Variables
 
 - `CONFIG_PATH` - Path to config file (default: `config.yaml`)
