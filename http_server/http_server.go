@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"net/http"
 	"strings"
@@ -93,18 +94,29 @@ func (hs *HTTPServer) handleListIPs(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleProxy handles HTTP CONNECT requests and regular proxy requests
-// The egress IP is specified via the X-Egress-IP header
+// The egress IP is specified via the X-Egress-IP header, or a random one is chosen
 func (hs *HTTPServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 	egressIP := r.Header.Get("X-Egress-IP")
-	if egressIP == "" {
-		http.Error(w, "X-Egress-IP header is required", http.StatusBadRequest)
-		return
-	}
 
-	// Validate the egress IP is allowed
-	if hs.config != nil && !hs.config.IsIPAllowed(egressIP) {
-		http.Error(w, "specified egress IP is not allowed", http.StatusForbidden)
-		return
+	// If no egress IP specified, pick a random one from available IPs
+	if egressIP == "" {
+		if hs.config == nil {
+			http.Error(w, "server not configured", http.StatusInternalServerError)
+			return
+		}
+		ips, err := hs.config.GetAvailableIPs()
+		if err != nil || len(ips) == 0 {
+			http.Error(w, "no available egress IPs", http.StatusInternalServerError)
+			return
+		}
+		egressIP = ips[rand.Intn(len(ips))].IP
+		logger.Debug().Str("egress_ip", egressIP).Msg("randomly selected egress IP")
+	} else {
+		// Validate the specified egress IP is allowed
+		if hs.config != nil && !hs.config.IsIPAllowed(egressIP) {
+			http.Error(w, "specified egress IP is not allowed", http.StatusForbidden)
+			return
+		}
 	}
 
 	// Parse the egress IP

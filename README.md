@@ -30,7 +30,8 @@ curl http://localhost:8080/ips
 # Proxy request with specific egress IP
 curl -x http://localhost:8080 --proxy-header "X-Egress-IP: 2a01:4ff:1f0:11f8::1" https://icanhazip.com
 
-# 2a01:4ff:1f0:11f8::1
+# Proxy request with random egress IP (omit header)
+curl -x http://localhost:8080 https://icanhazip.com
 ```
 
 ## Environment Variables
