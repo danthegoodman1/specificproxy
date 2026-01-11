@@ -16,7 +16,7 @@ allowed_interfaces:
 
 ```bash
 # Start the server
-CONFIG_PATH=config.yaml LISTEN_ADDR=:8080 ./specificproxy
+./specificproxy
 
 # List available egress IPs
 curl http://localhost:8080/ips
