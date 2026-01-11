@@ -1,4 +1,4 @@
-# specificproxy
+# Specific Proxy
 
 HTTP proxy that allows specifying an egress IP address per request. Useful for machines with multiple IPv6 addresses.
 
